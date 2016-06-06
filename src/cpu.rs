@@ -134,6 +134,17 @@ impl Cpu {
             0xA7 => self.and(Operand::Reg8(Reg8Name::A)),
             0xE6 => self.and(Operand::Immediate8),
 
+            // XORs
+            0xA8 => self.xor(Operand::Reg8(Reg8Name::B)),
+            0xA9 => self.xor(Operand::Reg8(Reg8Name::C)),
+            0xAA => self.xor(Operand::Reg8(Reg8Name::D)),
+            0xAB => self.xor(Operand::Reg8(Reg8Name::E)),
+            0xAC => self.xor(Operand::Reg8(Reg8Name::H)),
+            0xAD => self.xor(Operand::Reg8(Reg8Name::L)),
+            0xAE => self.xor(Operand::HLAddr),
+            0xAF => self.xor(Operand::Reg8(Reg8Name::A)),
+            0xEE => self.xor(Operand::Immediate8),
+
             // ORs
             0xB0 => self.or(Operand::Reg8(Reg8Name::B)),
             0xB1 => self.or(Operand::Reg8(Reg8Name::C)),
@@ -145,10 +156,19 @@ impl Cpu {
             0xB7 => self.or(Operand::Reg8(Reg8Name::A)),
             0xF6 => self.or(Operand::Immediate8),
 
+            // CPs
+            0xB8 => self.cp(Operand::Reg8(Reg8Name::B)),
+            0xB9 => self.cp(Operand::Reg8(Reg8Name::C)),
+            0xBA => self.cp(Operand::Reg8(Reg8Name::D)),
+            0xBB => self.cp(Operand::Reg8(Reg8Name::E)),
+            0xBC => self.cp(Operand::Reg8(Reg8Name::H)),
+            0xBD => self.cp(Operand::Reg8(Reg8Name::L)),
+            0xBE => self.cp(Operand::HLAddr),
+            0xBF => self.cp(Operand::Reg8(Reg8Name::A)),
+            0xFE => self.cp(Operand::Immediate8),
+
             0xC3 => self.jump_nn(),
-            0xFE => self.cp_n(),
             0x28 => self.jr_z(),
-            0xAF => self.xor_a(),
             0x18 => self.jr_r8(),
             0x02 => self.ld_bc_a(),
             0x3E => self.ld_a_d8(),
@@ -280,29 +300,6 @@ impl Cpu {
         println!("JP {:02X}", self.pc);
     }
 
-    fn cp_n(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1);
-        println!("CP {:02X} {:02X}", operand, self.a);
-
-        // Remove later!
-        // 0x91 = 145 = first line of vblank period.
-        let hack = self.pc == 109 && operand == 0x91;
-
-        self.f = 0b01000_000u8;
-        if operand == self.a || hack  {
-            self.set_f_zero();
-        } else if self.a < operand {
-            self.set_f_carry();
-        }
-
-        let half_carry = ((self.a as i8 & 0xF) - (operand as i8 & 0xF)) & 0x10;
-        if half_carry == 0x10 {
-            self.set_f_halfcarry();
-        }
-
-        self.pc += 2;
-    }
-
     fn jr_z(&mut self) {
         let operand = self.mem.read_u16(self.pc+1);
         if self.is_f_zero() {
@@ -311,16 +308,6 @@ impl Cpu {
             self.pc += 2;
         }
         println!("JR Z,{:02X}", operand);
-    }
-
-    fn xor_a(&mut self) {
-        self.f = 0x0;
-        self.a ^= self.a;
-        if self.a == 0x0 {
-            self.set_f_zero();
-        }
-        self.pc += 1;
-        println!("XOR A,A");
     }
 
     fn jr_r8(&mut self) {
@@ -643,26 +630,25 @@ impl Cpu {
     }
 
     fn sub(&mut self, operand: Operand) {
-        let orig = self.a;
         let value = match operand {
             Operand::Reg8(reg_name) => {
                 println!("SUB A,{}", self.reg8_string(&reg_name));
                 let value = self.reg8_read(reg_name);
-                self.a += value;
+                self.a -= value;
                 self.pc += 1;
                 value
             },
             Operand::HLAddr => {
                 println!("SUB A,(HL)");
                 let value = self.read_hladdr_u8();
-                self.a += value;
+                self.a -= value;
                 self.pc += 1;
                 value
             },
             Operand::Immediate8 => {
                 let value = self.mem.read_u8(self.pc+1);
                 println!("SUB A,{:02X}", value);
-                self.a += value;
+                self.a -= value;
                 self.pc += 2;
                 value
             },
@@ -708,6 +694,33 @@ impl Cpu {
         }
     }
 
+    fn xor(&mut self, operand: Operand) {
+        match operand {
+            Operand::Reg8(reg_name) => {
+                println!("XOR {}", self.reg8_string(&reg_name));
+                self.a ^= self.reg8_read(reg_name);
+                self.pc += 1;
+            },
+            Operand::HLAddr => {
+                println!("XOR (HL)");
+                let value = self.read_hladdr_u8();
+                self.a ^= value;
+                self.pc += 1;
+            },
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1);
+                println!("XOR {:02X}", value);
+                self.a ^= value;
+                self.pc += 2;
+            },
+            _ => unreachable!("XOR only supports Reg8, HLAddr, and Immediate8.")
+        };
+        self.f = 0;
+        if self.a == 0 {
+            self.set_f_zero();
+        }
+    }
+
     fn or(&mut self, operand: Operand) {
         match operand {
             Operand::Reg8(reg_name) => {
@@ -732,6 +745,45 @@ impl Cpu {
         self.f = 0;
         if self.a == 0 {
             self.set_f_zero();
+        }
+    }
+
+    fn cp(&mut self, operand: Operand) {
+        let value = match operand {
+            Operand::Reg8(reg_name) => {
+                println!("CP {}", self.reg8_string(&reg_name));
+                let value = self.reg8_read(reg_name);
+                self.pc += 1;
+                value
+            },
+            Operand::HLAddr => {
+                println!("CP (HL)");
+                let value = self.read_hladdr_u8();
+                self.pc += 1;
+                value
+            },
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1);
+                println!("CP {:02X}", value);
+                self.pc += 2;
+                value
+            },
+            _ => unreachable!("CP only supports Reg8, HLAddr, and Immediate8.")
+        };
+
+        // Remove later!
+        // 0x91 = 145 = first line of vblank period.
+        let hack = self.pc == 111 && value == 0x91;
+
+        self.f = 0b01000_000u8;
+        if value == self.a || hack {
+            self.set_f_zero();
+        } else if self.a < value {
+            self.set_f_carry();
+        }
+        let half_carry = ((self.a as i8 & 0xF) - (value as i8 & 0xF)) & 0x10;
+        if half_carry == 0x10 {
+            self.set_f_halfcarry();
         }
     }
 }
