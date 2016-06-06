@@ -19,6 +19,13 @@ enum Reg8Name {
     H, L
 }
 
+enum Condition {
+    NZ,
+    Z,
+    NC,
+    C
+}
+
 enum Operand<'a> {
     Reg8(Reg8Name),
     Reg16(&'a mut u16),
@@ -28,6 +35,7 @@ enum Operand<'a> {
     Addr16, // a16
     Signed8, // r8
     HLAddr, // (HL)
+    Condition // cc
 }
 
 impl Cpu {
@@ -81,6 +89,24 @@ impl Cpu {
         }
     }
 
+    fn cond_string(&self, cond: &Condition) -> &str {
+        match cond {
+            &Condition::NZ => "NZ",
+            &Condition::Z => "Z",
+            &Condition::NC => "NC",
+            &Condition::C => "C"
+        }
+    }
+
+    fn cond_eval(&mut self, cond: Condition) -> bool {
+        match cond {
+            Condition::NZ => ! self.is_f_zero(),
+            Condition::Z => self.is_f_zero(),
+            Condition::NC => ! self.is_f_carry(),
+            Condition::C => self.is_f_carry()
+        }
+    }
+
     fn reg8_write(&mut self, reg_name: Reg8Name, value: u8) {
         let mut reg = match reg_name {
             Reg8Name::A => self.a,
@@ -100,6 +126,13 @@ impl Cpu {
         print!("{:02X} ", opcode);
         match opcode {
             0x00 => self.nop(),
+
+            // JRs
+            0x18 => self.jr(None, Operand::Immediate8),
+            0x20 => self.jr(Some(Condition::NZ), Operand::Immediate8),
+            0x28 => self.jr(Some(Condition::Z), Operand::Immediate8),
+            0x30 => self.jr(Some(Condition::NC), Operand::Immediate8),
+            0x38 => self.jr(Some(Condition::C), Operand::Immediate8),
 
             // ADDs
             0x80 => self.add(Operand::Reg8(Reg8Name::B)),
@@ -168,8 +201,6 @@ impl Cpu {
             0xFE => self.cp(Operand::Immediate8),
 
             0xC3 => self.jump_nn(),
-            0x28 => self.jr_z(),
-            0x18 => self.jr_r8(),
             0x02 => self.ld_bc_a(),
             0x3E => self.ld_a_d8(),
             0xEA => self.ld_a16_a(),
@@ -179,7 +210,6 @@ impl Cpu {
             0xCD => self.call(),
             0xF0 => self.ldh_a_a8(),
             0x47 => self.ld_b_a(),
-            0x20 => self.jr_nz_r8(),
             0x78 => self.ld_a_b(),
             0xC9 => self.ret(),
             0x31 => self.ld_sp_d16(),
@@ -300,26 +330,6 @@ impl Cpu {
         println!("JP {:02X}", self.pc);
     }
 
-    fn jr_z(&mut self) {
-        let operand = self.mem.read_u16(self.pc+1);
-        if self.is_f_zero() {
-            self.pc = operand;
-        } else {
-            self.pc += 2;
-        }
-        println!("JR Z,{:02X}", operand);
-    }
-
-    fn jr_r8(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1) as i8;
-        if operand > 0 {
-            self.pc += operand as u16;
-        } else {
-            self.pc -= (operand * -1) as u16;
-        }
-        println!("JR {:02X}", operand);
-    }
-
     fn ld_bc_a(&mut self) {
         let addr = u16_from_2u8s((self.b, self.c));
         self.mem.write_u8(addr, self.a);
@@ -393,18 +403,35 @@ impl Cpu {
         println!("RES 0,A");
     }
 
-    fn jr_nz_r8(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1) as i8;
-        println!("JR NZ,{:02X}", operand);
-        if ! self.is_f_zero() {
-            if operand > 0 {
-                self.pc += operand as u16;
-            } else {
-                self.pc -= (operand * -1) as u16;
-            }
-        } else {
-            self.pc += 2;
-        }
+    fn jr(&mut self, condition: Option<Condition>, operand: Operand) {
+        match operand {
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1) as i8;
+                let satisfied = match condition {
+                    Some(cond) => {
+                        println!("JR {},{:02X}", self.cond_string(&cond), value);
+                        self.cond_eval(cond)
+                    }
+                    None => {
+                        println!("JR {:02X}", value);
+                        true
+                    }
+                };
+
+                if satisfied {
+                    if value > 0 {
+                        self.pc += value as u16;
+                    } else {
+                        self.pc -= (value * -1) as u16;
+                    }
+                } else {
+                    self.pc += 2;
+                }
+            },
+            _ => unreachable!("JR only supports Immediate8.")
+        };
+
+        // Temp hack that prevents endless looping while waiting for vblank
         if self.pc == 105 {
             panic!();
         }
