@@ -1,4 +1,6 @@
 use util::*;
+use std::io::{Write, Seek, SeekFrom};
+use std::fs::File;
 
 pub struct Mem {
     fixed_rom_bank: Vec<u8>,
@@ -103,5 +105,18 @@ impl Mem {
         let values = u16_to_2u8s(value);
         pair.0[pair.1] = values.0;
         pair.0[pair.1+1] = values.1;
+    }
+
+    pub fn dump(&self) {
+        let mut f = File::create("memdump.bin").unwrap();
+        f.write(&self.fixed_rom_bank).unwrap();
+        f.seek(SeekFrom::Start(0x4000)).unwrap();
+        f.write(&self.switchable_rom_bank).unwrap();
+        f.seek(SeekFrom::Start(0xE000)).unwrap();
+        f.write(&self.internal_ram_8kb).unwrap();
+        f.seek(SeekFrom::Start(0xFF4C)).unwrap();
+        f.write(&self.io_ports).unwrap();
+        f.seek(SeekFrom::Start(0xFF80)).unwrap();
+        f.write(&self.high_ram).unwrap();
     }
 }

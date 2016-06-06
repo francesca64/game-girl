@@ -57,6 +57,9 @@ impl Cpu {
             0xF0 => self.ldh_a_a8(),
             0x47 => self.ld_b_a(),
             0x20 => self.jr_nz_r8(),
+            0xE6 => self.and_d8(),
+            0x78 => self.ld_a_b(),
+            0xC9 => self.ret(),
             0xCB => {
                 let opcode = self.mem.read_u8(self.pc+1);
                 print!("{:02X} ", opcode);
@@ -77,21 +80,26 @@ impl Cpu {
 
     fn push_stack_u8(&mut self, value: u8) {
         self.sp -= 1;
+        println!("[SP {:02X}]", self.sp);
         self.mem.write_u8(self.sp, value);
     }
 
     fn push_stack_u16(&mut self, value: u16) {
         self.sp -= 2;
+        println!("[SP {:02X}]", self.sp);
         self.mem.write_u16(self.sp, value);
     }
 
     fn pop_stack_u8(&mut self) -> u8 {
         self.sp += 1;
+        println!("[SP {:02X}]", self.sp);
         self.mem.read_u8(self.sp)
     }
 
     fn pop_stack_u16(&mut self) -> u16 {
         self.sp += 2;
+        println!("[SP {:02X}]", self.sp);
+        self.mem.dump();
         self.mem.read_u16(self.sp)
     }
 
@@ -158,6 +166,7 @@ impl Cpu {
         println!("CP {:02X} {:02X}", operand, self.a);
 
         // Remove later!
+        // 0x91 = 145 = first line of vblank period.
         let hack = self.pc == 109 && operand == 0x91;
 
         self.f = 0x0;
@@ -294,5 +303,28 @@ impl Cpu {
         if self.pc == 105 {
             panic!();
         }
+    }
+
+    fn and_d8(&mut self) {
+        let operand = self.mem.read_u8(self.pc+1);
+        println!("AND {:02X}", operand);
+        self.a &= operand;
+        self.f = 0b0010_0000u8;
+        if self.a == 0 {
+            self.set_f_zero();
+        }
+        self.pc += 2;
+    }
+
+    fn ld_a_b(&mut self) {
+        println!("LD A,B");
+        self.a = self.b;
+        self.pc += 1;
+    }
+
+    fn ret(&mut self) {
+        println!("RET");
+        self.pc = self.pop_stack_u16();
+        println!("{:?}", self.pc);
     }
 }
