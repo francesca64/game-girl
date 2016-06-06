@@ -19,6 +19,13 @@ enum Reg8Name {
     H, L
 }
 
+enum Reg16Name {
+    AF,
+    BC,
+    DE,
+    HL
+}
+
 enum Condition {
     NZ,
     Z,
@@ -26,9 +33,10 @@ enum Condition {
     C
 }
 
-enum Operand<'a> {
+enum Operand {
     Reg8(Reg8Name),
-    Reg16(&'a mut u16),
+    Reg16(Reg16Name),
+    RegAddr(Reg16Name),
     Immediate8, // d8
     Immediate16, // d16
     Addr8, // a8
@@ -103,6 +111,42 @@ impl Cpu {
         *reg = value;
     }
 
+    fn reg16_string(&self, reg_name: &Reg16Name) -> &str {
+        match reg_name {
+            &Reg16Name::AF => "AF",
+            &Reg16Name::BC => "BC",
+            &Reg16Name::DE => "DE",
+            &Reg16Name::HL => "HL"
+        }
+    }
+
+    fn reg16_read(&self, reg_name: Reg16Name) -> u16 {
+        match reg_name {
+            Reg16Name::AF => u16_from_2u8s((self.f, self.a)),
+            Reg16Name::BC => u16_from_2u8s((self.c, self.b)),
+            Reg16Name::DE => u16_from_2u8s((self.e, self.d)),
+            Reg16Name::HL => u16_from_2u8s((self.l, self.h))
+        }
+    }
+
+    fn read_hladdr_u8(&self) -> u8 {
+        self.reg16addr_read_u8(Reg16Name::HL)
+    }
+
+    fn write_hladdr_u8(&mut self, value: u8) {
+        self.reg16addr_write_u8(Reg16Name::HL, value)
+    }
+
+    fn reg16addr_read_u8(&self, reg_name: Reg16Name) -> u8 {
+        let addr = self.reg16_read(reg_name);
+        self.mem.read_u8(addr)
+    }
+
+    fn reg16addr_write_u8(&mut self, reg_name: Reg16Name, value: u8) {
+        let addr = self.reg16_read(reg_name);
+        self.mem.write_u8(addr, value);
+    }
+
     fn cond_string(&self, cond: &Condition) -> &str {
         match cond {
             &Condition::NZ => "NZ",
@@ -128,6 +172,13 @@ impl Cpu {
             0x00 => self.nop(),
 
             // LDs
+            0x02 => self.ld(Operand::RegAddr(Reg16Name::BC), Operand::Reg8(Reg8Name::A)),
+            0x12 => self.ld(Operand::RegAddr(Reg16Name::DE), Operand::Reg8(Reg8Name::A)),
+            0x77 => self.ld(Operand::RegAddr(Reg16Name::HL), Operand::Reg8(Reg8Name::A)),
+            0xEA => self.ld(Operand::Addr16, Operand::Reg8(Reg8Name::A)),
+            0x06 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Immediate8),
+            0x16 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Immediate8),
+            0x26 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Immediate8),
             0x7F => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::A)),
             0x78 => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::B)),
             0x79 => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::C)),
@@ -260,9 +311,7 @@ impl Cpu {
             0xFE => self.cp(Operand::Immediate8),
 
             0xC3 => self.jump_nn(),
-            0x02 => self.ld_bc_a(),
             0x3E => self.ld_a_d8(),
-            0xEA => self.ld_a16_a(),
             0xF3 => self.di(),
             0x0F => self.rrca(),
             0xE0 => self.ldh_a8_a(),
@@ -275,7 +324,6 @@ impl Cpu {
             0x01 => self.ld_bc_d16(),
             0x23 => self.inc_hl(),
             0x0B => self.dec_bc(),
-            0x26 => self.ld_h_d8(),
             0x04 => self.inc_b(),
             0x22 => self.ldi_hl_a(),
             0x1D => self.dec_e(),
@@ -400,7 +448,13 @@ impl Cpu {
                         let value = self.read_hladdr_u8();
                         self.reg8_write(reg_name, value);
                     },
-                    _ => unreachable!("LD {} only supports Reg8 and HLAddr.",
+                    Operand::Immediate8 => {
+                        let value = self.mem.read_u8(self.pc+1);
+                        println!("LD {},{:02X}", self.reg8_string(&reg_name), value);
+                        self.reg8_write(reg_name, value);
+                        self.pc += 1;
+                    },
+                    _ => unreachable!("LD {} only supports Reg8, HLAddr, and Immediate8.",
                         self.reg8_string(&reg_name))
                 }
             },
@@ -415,21 +469,38 @@ impl Cpu {
                         let value = self.mem.read_u8(self.pc+1);
                         println!("LD (HL),{:02X}", value);
                         self.write_hladdr_u8(value);
-                        self.pc += 2;
+                        self.pc += 1;
                     },
                     _ => unreachable!("LD (HL) only supports Reg8 and Immediate8.")
                 }
             },
-            _ => unreachable!("LD only supports Reg8 and HLAddr.")
+            Operand::RegAddr(reg_name) => {
+                match r2 {
+                    Operand::Reg8(second_reg_name) => {
+                        println!("LD ({}),{}",
+                            self.reg16_string(&reg_name), self.reg8_string(&second_reg_name));
+                        let value = self.reg8_read(second_reg_name);
+                        self.reg16addr_write_u8(reg_name, value);
+                    },
+                    _ => unreachable!("LD ({}) only supports Reg8.",
+                        self.reg16_string(&reg_name))
+                }
+            },
+            Operand::Addr16 => {
+                let addr = self.mem.read_u16(self.pc+1);
+                match r2 {
+                    Operand::Reg8(reg_name) => {
+                        println!("LD ({:02X}),{}", addr, self.reg8_string(&reg_name));
+                        let value = self.reg8_read(reg_name);
+                        self.mem.write_u8(addr, value);
+                    },
+                    _ => unreachable!("LD ({:02X}) only supports Reg8.", addr)
+                }
+                self.pc += 2;
+            },
+            _ => unreachable!("LD only supports Reg8, HLAddr, and RegAddr.")
         };
         self.pc += 1;
-    }
-
-    fn ld_bc_a(&mut self) {
-        let addr = u16_from_2u8s((self.b, self.c));
-        self.mem.write_u8(addr, self.a);
-        self.pc += 1;
-        println!("LD (BC),A");
     }
 
     fn ld_a_d8(&mut self) {
@@ -437,13 +508,6 @@ impl Cpu {
         self.a = operand;
         self.pc += 2;
         println!("LD A,{:02X}", operand);
-    }
-
-    fn ld_a16_a(&mut self) {
-        let addr = self.mem.read_u16(self.pc+1);
-        self.mem.write_u8(addr, self.a);
-        self.pc += 3;
-        println!("LD {:02X},A", addr);
     }
 
     fn di(&mut self) {
@@ -597,16 +661,6 @@ impl Cpu {
         }
         self.reset_f_subtraction();
         self.pc += 1;
-    }
-
-    fn read_hladdr_u8(&self) -> u8 {
-        let addr = u16_from_2u8s((self.l, self.h));
-        self.mem.read_u8(addr)
-    }
-
-    fn write_hladdr_u8(&mut self, value: u8) {
-        let addr = u16_from_2u8s((self.l, self.h));
-        self.mem.write_u8(addr, value);
     }
 
     fn inc_hl_(&mut self) {

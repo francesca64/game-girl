@@ -6,6 +6,7 @@ pub struct Mem {
     fixed_rom_bank: Vec<u8>,
     switchable_rom_bank: Vec<u8>,
     vram: Vec<u8>,
+    switchable_ram: Vec<u8>,
     internal_ram_8kb: Vec<u8>,
     io_ports: Vec<u8>,
     high_ram: Vec<u8>
@@ -16,10 +17,11 @@ impl Default for Mem {
         Mem {
             fixed_rom_bank: Vec::with_capacity(0x4000),
             switchable_rom_bank: Vec::with_capacity(0x4000),
-            vram: vec![0x0; 0x2000],
-            internal_ram_8kb: vec![0x0; 0x2000],
-            io_ports: vec![0x0; 76],
-            high_ram: vec![0x0; 128]
+            vram: vec![0x0; 0x2000+1],
+            switchable_ram: vec![0x0; 0x2000+1],
+            internal_ram_8kb: vec![0x0; 0x2000+1],
+            io_ports: vec![0x0; 0x4C+1],
+            high_ram: vec![0x0; 0x7F+1]
         }
     }
 }
@@ -41,7 +43,7 @@ impl Mem {
         } else if addr <= 0xA000 {
             (&self.vram, (addr-0x8000) as usize)
         } else if addr <= 0xC000 {
-            panic!("Memory address in 8kb switchable RAM, which is unimplemented. {}", addr);
+            (&self.switchable_ram, (addr-0xA000) as usize)
         } else if addr <= 0xE000 {
             (&self.internal_ram_8kb, (addr-0xC000) as usize)
         } else if addr <= 0xFE00 {
@@ -68,7 +70,7 @@ impl Mem {
         } else if addr <= 0xA000 {
             (&mut self.vram, (addr-0x8000) as usize)
         } else if addr <= 0xC000 {
-            panic!("Memory address in 8kb switchable RAM, which is unimplemented. {}", addr);
+            (&mut self.switchable_ram, (addr-0xA000) as usize)
         } else if addr <= 0xE000 {
             (&mut self.internal_ram_8kb, (addr-0xC000) as usize)
         } else if addr <= 0xFE00 {
@@ -116,6 +118,8 @@ impl Mem {
         f.write(&self.switchable_rom_bank).unwrap();
         f.seek(SeekFrom::Start(0x8000)).unwrap();
         f.write(&self.vram).unwrap();
+        f.seek(SeekFrom::Start(0xA000)).unwrap();
+        f.write(&self.switchable_ram).unwrap();
         f.seek(SeekFrom::Start(0xE000)).unwrap();
         f.write(&self.internal_ram_8kb).unwrap();
         f.seek(SeekFrom::Start(0xFF4C)).unwrap();
