@@ -13,7 +13,7 @@ pub struct Cpu {
 }
 
 enum Reg8Name {
-    A, F,
+    A, //F,
     B, C,
     D, E,
     H, L
@@ -70,7 +70,7 @@ impl Cpu {
             &Reg8Name::C => "C",
             &Reg8Name::D => "D",
             &Reg8Name::E => "E",
-            &Reg8Name::F => "F",
+            //&Reg8Name::F => "F",
             &Reg8Name::H => "H",
             &Reg8Name::L => "L"
         }
@@ -83,10 +83,24 @@ impl Cpu {
             Reg8Name::C => self.c,
             Reg8Name::D => self.d,
             Reg8Name::E => self.e,
-            Reg8Name::F => self.f,
+            //Reg8Name::F => self.f,
             Reg8Name::H => self.h,
             Reg8Name::L => self.l
         }
+    }
+
+    fn reg8_write(&mut self, reg_name: Reg8Name, value: u8) {
+        let reg = match reg_name {
+            Reg8Name::A => &mut self.a,
+            Reg8Name::B => &mut self.b,
+            Reg8Name::C => &mut self.c,
+            Reg8Name::D => &mut self.d,
+            Reg8Name::E => &mut self.e,
+            //Reg8Name::F => &mut self.f,
+            Reg8Name::H => &mut self.h,
+            Reg8Name::L => &mut self.l
+        };
+        *reg = value;
     }
 
     fn cond_string(&self, cond: &Condition) -> &str {
@@ -107,25 +121,70 @@ impl Cpu {
         }
     }
 
-    fn reg8_write(&mut self, reg_name: Reg8Name, value: u8) {
-        let mut reg = match reg_name {
-            Reg8Name::A => self.a,
-            Reg8Name::B => self.b,
-            Reg8Name::C => self.c,
-            Reg8Name::D => self.d,
-            Reg8Name::E => self.e,
-            Reg8Name::F => self.f,
-            Reg8Name::H => self.h,
-            Reg8Name::L => self.l
-        };
-        reg = value;
-    }
-
     fn opcode_exec(&mut self, opcode: u8) {
         //println!("PC {}", self.pc);
         print!("{:02X} ", opcode);
         match opcode {
             0x00 => self.nop(),
+
+            // LDs
+            0x7F => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::A)),
+            0x78 => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::B)),
+            0x79 => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::C)),
+            0x7A => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::D)),
+            0x7B => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::E)),
+            0x7C => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::H)),
+            0x7D => self.ld(Operand::Reg8(Reg8Name::A), Operand::Reg8(Reg8Name::L)),
+            0x7E => self.ld(Operand::Reg8(Reg8Name::A), Operand::HLAddr),
+            0x40 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Reg8(Reg8Name::B)),
+            0x41 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Reg8(Reg8Name::C)),
+            0x42 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Reg8(Reg8Name::D)),
+            0x43 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Reg8(Reg8Name::E)),
+            0x44 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Reg8(Reg8Name::H)),
+            0x45 => self.ld(Operand::Reg8(Reg8Name::B), Operand::Reg8(Reg8Name::L)),
+            0x46 => self.ld(Operand::Reg8(Reg8Name::B), Operand::HLAddr),
+            0x48 => self.ld(Operand::Reg8(Reg8Name::C), Operand::Reg8(Reg8Name::B)),
+            0x49 => self.ld(Operand::Reg8(Reg8Name::C), Operand::Reg8(Reg8Name::C)),
+            0x4A => self.ld(Operand::Reg8(Reg8Name::C), Operand::Reg8(Reg8Name::D)),
+            0x4B => self.ld(Operand::Reg8(Reg8Name::C), Operand::Reg8(Reg8Name::E)),
+            0x4C => self.ld(Operand::Reg8(Reg8Name::C), Operand::Reg8(Reg8Name::H)),
+            0x4D => self.ld(Operand::Reg8(Reg8Name::C), Operand::Reg8(Reg8Name::L)),
+            0x4E => self.ld(Operand::Reg8(Reg8Name::C), Operand::HLAddr),
+            0x50 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Reg8(Reg8Name::B)),
+            0x51 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Reg8(Reg8Name::C)),
+            0x52 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Reg8(Reg8Name::D)),
+            0x53 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Reg8(Reg8Name::E)),
+            0x54 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Reg8(Reg8Name::H)),
+            0x55 => self.ld(Operand::Reg8(Reg8Name::D), Operand::Reg8(Reg8Name::L)),
+            0x56 => self.ld(Operand::Reg8(Reg8Name::D), Operand::HLAddr),
+            0x58 => self.ld(Operand::Reg8(Reg8Name::E), Operand::Reg8(Reg8Name::B)),
+            0x59 => self.ld(Operand::Reg8(Reg8Name::E), Operand::Reg8(Reg8Name::C)),
+            0x5A => self.ld(Operand::Reg8(Reg8Name::E), Operand::Reg8(Reg8Name::D)),
+            0x5B => self.ld(Operand::Reg8(Reg8Name::E), Operand::Reg8(Reg8Name::E)),
+            0x5C => self.ld(Operand::Reg8(Reg8Name::E), Operand::Reg8(Reg8Name::H)),
+            0x5D => self.ld(Operand::Reg8(Reg8Name::E), Operand::Reg8(Reg8Name::L)),
+            0x5E => self.ld(Operand::Reg8(Reg8Name::E), Operand::HLAddr),
+            0x60 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Reg8(Reg8Name::B)),
+            0x61 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Reg8(Reg8Name::C)),
+            0x62 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Reg8(Reg8Name::D)),
+            0x63 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Reg8(Reg8Name::E)),
+            0x64 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Reg8(Reg8Name::H)),
+            0x65 => self.ld(Operand::Reg8(Reg8Name::H), Operand::Reg8(Reg8Name::L)),
+            0x66 => self.ld(Operand::Reg8(Reg8Name::H), Operand::HLAddr),
+            0x68 => self.ld(Operand::Reg8(Reg8Name::L), Operand::Reg8(Reg8Name::B)),
+            0x69 => self.ld(Operand::Reg8(Reg8Name::L), Operand::Reg8(Reg8Name::C)),
+            0x6A => self.ld(Operand::Reg8(Reg8Name::L), Operand::Reg8(Reg8Name::D)),
+            0x6B => self.ld(Operand::Reg8(Reg8Name::L), Operand::Reg8(Reg8Name::E)),
+            0x6C => self.ld(Operand::Reg8(Reg8Name::L), Operand::Reg8(Reg8Name::H)),
+            0x6D => self.ld(Operand::Reg8(Reg8Name::L), Operand::Reg8(Reg8Name::L)),
+            0x6E => self.ld(Operand::Reg8(Reg8Name::L), Operand::HLAddr),
+            0x70 => self.ld(Operand::HLAddr, Operand::Reg8(Reg8Name::B)),
+            0x71 => self.ld(Operand::HLAddr, Operand::Reg8(Reg8Name::C)),
+            0x72 => self.ld(Operand::HLAddr, Operand::Reg8(Reg8Name::D)),
+            0x73 => self.ld(Operand::HLAddr, Operand::Reg8(Reg8Name::E)),
+            0x74 => self.ld(Operand::HLAddr, Operand::Reg8(Reg8Name::H)),
+            0x75 => self.ld(Operand::HLAddr, Operand::Reg8(Reg8Name::L)),
+            0x36 => self.ld(Operand::HLAddr, Operand::Immediate8),
 
             // JRs
             0x18 => self.jr(None, Operand::Immediate8),
@@ -210,18 +269,14 @@ impl Cpu {
             0xCD => self.call(),
             0xF0 => self.ldh_a_a8(),
             0x47 => self.ld_b_a(),
-            0x78 => self.ld_a_b(),
             0xC9 => self.ret(),
             0x31 => self.ld_sp_d16(),
             0x21 => self.ld_hl_d16(),
             0x01 => self.ld_bc_d16(),
-            0x36 => self.ld_hl_d8(),
             0x23 => self.inc_hl(),
             0x0B => self.dec_bc(),
-            0x4A => self.ld_c_d(),
             0x26 => self.ld_h_d8(),
             0x04 => self.inc_b(),
-            0x6B => self.ld_l_e(),
             0x22 => self.ldi_hl_a(),
             0x1D => self.dec_e(),
             0x15 => self.dec_d(),
@@ -328,6 +383,46 @@ impl Cpu {
     fn jump_nn(&mut self) {
         self.pc = self.mem.read_u16(self.pc+1);
         println!("JP {:02X}", self.pc);
+    }
+
+    fn ld(&mut self, r1: Operand, r2: Operand) {
+        match r1 {
+            Operand::Reg8(reg_name) => {
+                match r2 {
+                    Operand::Reg8(second_reg_name) => {
+                        println!("LD {},{}",
+                            self.reg8_string(&reg_name), self.reg8_string(&second_reg_name));
+                        let value = self.reg8_read(second_reg_name);
+                        self.reg8_write(reg_name, value);
+                    },
+                    Operand::HLAddr => {
+                        println!("LD {},(HL)", self.reg8_string(&reg_name));
+                        let value = self.read_hladdr_u8();
+                        self.reg8_write(reg_name, value);
+                    },
+                    _ => unreachable!("LD {} only supports Reg8 and HLAddr.",
+                        self.reg8_string(&reg_name))
+                }
+            },
+            Operand::HLAddr => {
+                match r2 {
+                    Operand::Reg8(reg_name) => {
+                        println!("LD (HL),{}", self.reg8_string(&reg_name));
+                        let value = self.reg8_read(reg_name);
+                        self.write_hladdr_u8(value);
+                    },
+                    Operand::Immediate8 => {
+                        let value = self.mem.read_u8(self.pc+1);
+                        println!("LD (HL),{:02X}", value);
+                        self.write_hladdr_u8(value);
+                        self.pc += 2;
+                    },
+                    _ => unreachable!("LD (HL) only supports Reg8 and Immediate8.")
+                }
+            },
+            _ => unreachable!("LD only supports Reg8 and HLAddr.")
+        };
+        self.pc += 1;
     }
 
     fn ld_bc_a(&mut self) {
@@ -437,12 +532,6 @@ impl Cpu {
         }
     }
 
-    fn ld_a_b(&mut self) {
-        println!("LD A,B");
-        self.a = self.b;
-        self.pc += 1;
-    }
-
     fn ret(&mut self) {
         println!("RET");
         self.pc = self.pop_stack_u16();
@@ -473,13 +562,6 @@ impl Cpu {
         self.pc += 3;
     }
 
-    fn ld_hl_d8(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1);
-        println!("LD (HL),{:02X}", operand);
-        self.l = operand;
-        self.pc += 2;
-    }
-
     fn inc_hl(&mut self) {
         println!("INC HL");
         let value = u16_from_2u8s((self.l, self.h)) + 1;
@@ -495,12 +577,6 @@ impl Cpu {
         let bytes = u16_to_2u8s(value);
         self.b = bytes.0;
         self.c = bytes.1;
-        self.pc += 1;
-    }
-
-    fn ld_c_d(&mut self) {
-        println!("LD C,D");
-        self.c = self.d;
         self.pc += 1;
     }
 
@@ -520,12 +596,6 @@ impl Cpu {
             self.set_f_halfcarry();
         }
         self.reset_f_subtraction();
-        self.pc += 1;
-    }
-
-    fn ld_l_e(&mut self) {
-        println!("LD L,E");
-        self.l = self.e;
         self.pc += 1;
     }
 
