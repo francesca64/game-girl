@@ -113,18 +113,18 @@ impl Mem {
 
     pub fn dump(&self) {
         let mut f = File::create("memdump.bin").unwrap();
-        f.write(&self.fixed_rom_bank).unwrap();
+        f.write_all(&self.fixed_rom_bank).unwrap();
         f.seek(SeekFrom::Start(0x4000)).unwrap();
-        f.write(&self.switchable_rom_bank).unwrap();
+        f.write_all(&self.switchable_rom_bank).unwrap();
         f.seek(SeekFrom::Start(0x8000)).unwrap();
-        f.write(&self.vram).unwrap();
+        f.write_all(&self.vram).unwrap();
         f.seek(SeekFrom::Start(0xA000)).unwrap();
-        f.write(&self.switchable_ram).unwrap();
+        f.write_all(&self.switchable_ram).unwrap();
         f.seek(SeekFrom::Start(0xE000)).unwrap();
-        f.write(&self.internal_ram_8kb).unwrap();
+        f.write_all(&self.internal_ram_8kb).unwrap();
         f.seek(SeekFrom::Start(0xFF4C)).unwrap();
-        f.write(&self.io_ports).unwrap();
+        f.write_all(&self.io_ports).unwrap();
         f.seek(SeekFrom::Start(0xFF80)).unwrap();
-        f.write(&self.high_ram).unwrap();
+        f.write_all(&self.high_ram).unwrap();
     }
 }

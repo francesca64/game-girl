@@ -1,3 +1,8 @@
+#![feature(plugin)]
+#![plugin(clippy)]
+
+extern crate sdl2;
+
 mod util;
 mod gameboy;
 mod cpu;
@@ -8,7 +13,7 @@ use gameboy::*;
 
 fn main() {
     let mut gameboy = GameBoy::new();
-    let load_result = gameboy.load_rom("/home/teruko/blue.gb");
+    let load_result = gameboy.load_rom("roms/blue.gb");
     println!("== {} ==", gameboy.game_title);
     if let Err(e) = load_result {
         match e {

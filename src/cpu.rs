@@ -37,6 +37,18 @@ enum Condition {
 }
 
 #[derive(Copy, Clone)]
+enum ResetCode {
+    Rst00,
+    Rst08,
+    Rst10,
+    Rst18,
+    Rst20,
+    Rst28,
+    Rst30,
+    Rst38
+}
+
+#[derive(Copy, Clone)]
 enum Operand {
     Reg8(Reg8Name),
     Reg16(Reg16Name),
@@ -48,8 +60,7 @@ enum Operand {
     Signed8, // r8
     HLAddr, // (HL)
     StackPointer,
-    ProgramCounter,
-    Condition // cc
+    ProgramCounter
 }
 
 impl Cpu {
@@ -169,12 +180,12 @@ impl Cpu {
         self.mem.write_u8(addr, value);
     }
 
-    fn cond_string(&self, cond: &Condition) -> &str {
+    fn cond_string(&self, cond: Condition) -> &str {
         match cond {
-            &Condition::NZ => "NZ",
-            &Condition::Z => "Z",
-            &Condition::NC => "NC",
-            &Condition::C => "C"
+            Condition::NZ => "NZ",
+            Condition::Z => "Z",
+            Condition::NC => "NC",
+            Condition::C => "C"
         }
     }
 
@@ -188,10 +199,19 @@ impl Cpu {
     }
 
     fn opcode_exec(&mut self, opcode: u8) {
-        //println!("PC {}", self.pc);
-        print!("{:02X} ", opcode);
+        print!("[{:04X}] {:02X} · ", self.pc, opcode);
         match opcode {
             0x00 => self.nop(),
+
+            // RSTs
+            0xC7 => self.rst(ResetCode::Rst00),
+            0xCF => self.rst(ResetCode::Rst08),
+            0xD7 => self.rst(ResetCode::Rst10),
+            0xDF => self.rst(ResetCode::Rst18),
+            0xE7 => self.rst(ResetCode::Rst20),
+            0xEF => self.rst(ResetCode::Rst28),
+            0xF7 => self.rst(ResetCode::Rst30),
+            0xFF => self.rst(ResetCode::Rst38),
 
             // LDs
             0x02 => self.ld(Operand::RegAddr(Reg16Name::BC), Operand::Reg8(Reg8Name::A)),
@@ -265,6 +285,13 @@ impl Cpu {
             0x28 => self.jr(Some(Condition::Z), Operand::Immediate8),
             0x30 => self.jr(Some(Condition::NC), Operand::Immediate8),
             0x38 => self.jr(Some(Condition::C), Operand::Immediate8),
+
+            // RETs
+            0xC9 => self.ret(None),
+            0xC0 => self.ret(Some(Condition::NZ)),
+            0xD0 => self.ret(Some(Condition::NC)),
+            0xC8 => self.ret(Some(Condition::Z)),
+            0xD8 => self.ret(Some(Condition::C)),
 
             // INCs
 
@@ -356,7 +383,6 @@ impl Cpu {
             0xCD => self.call(),
             0xF0 => self.ldh_a_a8(),
             0x47 => self.ld_b_a(),
-            0xC9 => self.ret(),
             0x31 => self.ld_sp_d16(),
             0x21 => self.ld_hl_d16(),
             0x01 => self.ld_bc_d16(),
@@ -460,6 +486,27 @@ impl Cpu {
     fn nop(&mut self) {
         self.pc += 1;
         println!("NOP");
+    }
+
+    fn rst(&mut self, reset_code: ResetCode) {
+        let pc = self.pc;
+        self.push_stack_u16(pc);
+        let dest = match reset_code {
+            ResetCode::Rst00 => 0x00,
+            ResetCode::Rst08 => 0x08,
+            ResetCode::Rst10 => 0x10,
+            ResetCode::Rst18 => 0x18,
+            ResetCode::Rst20 => 0x20,
+            ResetCode::Rst28 => 0x28,
+            ResetCode::Rst30 => 0x30,
+            ResetCode::Rst38 => 0x38
+        };
+        if self.pc == dest {
+            self.mem.dump();
+            panic!("Reset loop. Implement more I/O stuff.");
+        }
+        self.pc = dest;
+        println!("RST {:02X}", self.pc);
     }
 
     fn jump_nn(&mut self) {
@@ -602,7 +649,7 @@ impl Cpu {
                 let value = self.mem.read_u8(self.pc+1) as i8;
                 let satisfied = match condition {
                     Some(cond) => {
-                        println!("JR {},{:02X}", self.cond_string(&cond), value);
+                        println!("JR {},{:02X}", self.cond_string(cond), value);
                         self.cond_eval(cond)
                     }
                     None => {
@@ -615,7 +662,7 @@ impl Cpu {
                     if value > 0 {
                         self.pc += value as u16;
                     } else {
-                        self.pc -= (value * -1) as u16;
+                        self.pc -= (-value) as u16;
                     }
                 } else {
                     self.pc += 2;
@@ -630,9 +677,22 @@ impl Cpu {
         }
     }
 
-    fn ret(&mut self) {
-        println!("RET");
-        self.pc = self.pop_stack_u16();
+    fn ret(&mut self, condition: Option<Condition>) {
+        let satisfied = match condition {
+            Some(cond) => {
+                println!("RET {}", self.cond_string(cond));
+                self.cond_eval(cond)
+            }
+            None => {
+                println!("RET");
+                true
+            }
+        };
+        if satisfied {
+            self.pc = self.pop_stack_u16();
+        } else {
+            self.pc += 1;
+        }
     }
 
     fn ld_sp_d16(&mut self) {

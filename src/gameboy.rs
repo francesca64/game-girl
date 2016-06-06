@@ -84,7 +84,7 @@ impl GameBoy {
         Ok(())
     }
 
-    pub fn run(&mut self) -> () {
+    pub fn run(&mut self) {
         self.cpu.run(&self.rom);
     }
 }

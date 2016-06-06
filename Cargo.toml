@@ -5,3 +5,4 @@ authors = ["Francesca Plebani <franplebani@gmail.com>"]
 
 [dependencies]
 clippy = { git = "https://github.com/Manishearth/rust-clippy" }
+sdl2 = "0.28"
