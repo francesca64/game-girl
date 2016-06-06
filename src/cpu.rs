@@ -100,7 +100,7 @@ impl Cpu {
     }
 
     fn set_f_zero(&mut self) {
-        self.f &= 0b1000_0000u8
+        self.f |= 0b1000_0000u8
     }
 
     fn reset_f_zero(&mut self) {
@@ -112,7 +112,7 @@ impl Cpu {
     }
 
     fn set_f_subtraction(&mut self) {
-        self.f &= 0b0100_0000u8
+        self.f |= 0b0100_0000u8
     }
 
     fn reset_f_subtraction(&mut self) {
@@ -124,7 +124,7 @@ impl Cpu {
     }
 
     fn set_f_halfcarry(&mut self) {
-        self.f &= 0b0010_0000u8
+        self.f |= 0b0010_0000u8
     }
 
     fn reset_f_halfcarry(&mut self) {
@@ -136,7 +136,7 @@ impl Cpu {
     }
 
     fn set_f_carry(&mut self) {
-        self.f &= 0b0001_0000u8
+        self.f |= 0b0001_0000u8
     }
 
     fn reset_f_carry(&mut self) {
@@ -150,14 +150,18 @@ impl Cpu {
 
     fn jump_nn(&mut self) {
         self.pc = self.mem.read_u16(self.pc+1);
-        println!("JP {}", hexdump(self.pc));
+        println!("JP {:02X}", self.pc);
     }
 
     fn cp_n(&mut self) {
         let operand = self.mem.read_u8(self.pc+1);
+        println!("CP {:02X} {:02X}", operand, self.a);
+
+        // Remove later!
+        let hack = self.pc == 109 && operand == 0x91;
 
         self.f = 0x0;
-        if operand == self.a {
+        if operand == self.a || hack  {
             self.set_f_zero();
             self.set_f_subtraction();
         } else if self.a < operand {
@@ -170,7 +174,6 @@ impl Cpu {
         }
 
         self.pc += 2;
-        println!("CP {}", hexdump(operand));
     }
 
     fn jr_z(&mut self) {
@@ -180,7 +183,7 @@ impl Cpu {
         } else {
             self.pc += 2;
         }
-        println!("JR Z,{}", hexdump(operand));
+        println!("JR Z,{:02X}", operand);
     }
 
     fn xor_a(&mut self) {
@@ -200,7 +203,7 @@ impl Cpu {
         } else {
             self.pc -= (operand * -1) as u16;
         }
-        println!("JR {}", hexdump(operand));
+        println!("JR {:02X}", operand);
     }
 
     fn ld_bc_a(&mut self) {
@@ -214,14 +217,14 @@ impl Cpu {
         let operand = self.mem.read_u8(self.pc+1);
         self.a = operand;
         self.pc += 2;
-        println!("LD A,{}", hexdump(operand));
+        println!("LD A,{:02X}", operand);
     }
 
     fn ld_a16_a(&mut self) {
         let addr = self.mem.read_u16(self.pc+1);
         self.mem.write_u8(addr, self.a);
         self.pc += 3;
-        println!("LD {},A", hexdump(addr));
+        println!("LD {:02X},A", addr);
     }
 
     fn di(&mut self) {
@@ -245,7 +248,7 @@ impl Cpu {
         let addr = 0xFF00 + operand as u16;
         self.mem.write_u8(addr, self.a);
         self.pc += 2;
-        println!("LDH {},A", hexdump(operand));
+        println!("LDH {:02X},A", operand);
     }
 
     fn call(&mut self) {
@@ -253,14 +256,15 @@ impl Cpu {
         let next = self.pc+3;
         self.push_stack_u16(next);
         self.pc = addr;
-        println!("CALL {}", hexdump(addr));
+        println!("CALL {:02X}", addr);
     }
 
     fn ldh_a_a8(&mut self) {
-        let addr = 0xFF00 + self.mem.read_u8(self.pc+1) as u16;
+        let operand = self.mem.read_u8(self.pc+1);
+        let addr = 0xFF00 + operand as u16;
+        println!("LDH A,{:02X}", addr);
         self.a = self.mem.read_u8(addr);
         self.pc += 2;
-        println!("LD A,{}", hexdump(addr));
     }
 
     fn ld_b_a(&mut self) {
@@ -277,6 +281,7 @@ impl Cpu {
 
     fn jr_nz_r8(&mut self) {
         let operand = self.mem.read_u8(self.pc+1) as i8;
+        println!("JR NZ,{:02X}", operand);
         if ! self.is_f_zero() {
             if operand > 0 {
                 self.pc += operand as u16;
@@ -286,7 +291,8 @@ impl Cpu {
         } else {
             self.pc += 2;
         }
-        println!("JR NZ,{}", hexdump(operand));
-        panic!();
+        if self.pc == 105 {
+            panic!();
+        }
     }
 }
