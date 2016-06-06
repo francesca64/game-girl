@@ -12,13 +12,15 @@ pub struct Cpu {
     mem: Mem
 }
 
+#[derive(Copy, Clone)]
 enum Reg8Name {
-    A, //F,
+    A, F,
     B, C,
     D, E,
     H, L
 }
 
+#[derive(Copy, Clone)]
 enum Reg16Name {
     AF,
     BC,
@@ -26,6 +28,7 @@ enum Reg16Name {
     HL
 }
 
+#[derive(Copy, Clone)]
 enum Condition {
     NZ,
     Z,
@@ -33,6 +36,7 @@ enum Condition {
     C
 }
 
+#[derive(Copy, Clone)]
 enum Operand {
     Reg8(Reg8Name),
     Reg16(Reg16Name),
@@ -43,6 +47,8 @@ enum Operand {
     Addr16, // a16
     Signed8, // r8
     HLAddr, // (HL)
+    StackPointer,
+    ProgramCounter,
     Condition // cc
 }
 
@@ -71,16 +77,16 @@ impl Cpu {
         }
     }
 
-    fn reg8_string(&self, reg_name: &Reg8Name) -> &str {
+    fn reg8_string(&self, reg_name: Reg8Name) -> &str {
         match reg_name {
-            &Reg8Name::A => "A",
-            &Reg8Name::B => "B",
-            &Reg8Name::C => "C",
-            &Reg8Name::D => "D",
-            &Reg8Name::E => "E",
-            //&Reg8Name::F => "F",
-            &Reg8Name::H => "H",
-            &Reg8Name::L => "L"
+            Reg8Name::A => "A",
+            Reg8Name::B => "B",
+            Reg8Name::C => "C",
+            Reg8Name::D => "D",
+            Reg8Name::E => "E",
+            Reg8Name::F => "F",
+            Reg8Name::H => "H",
+            Reg8Name::L => "L"
         }
     }
 
@@ -91,7 +97,7 @@ impl Cpu {
             Reg8Name::C => self.c,
             Reg8Name::D => self.d,
             Reg8Name::E => self.e,
-            //Reg8Name::F => self.f,
+            Reg8Name::F => self.f,
             Reg8Name::H => self.h,
             Reg8Name::L => self.l
         }
@@ -104,19 +110,28 @@ impl Cpu {
             Reg8Name::C => &mut self.c,
             Reg8Name::D => &mut self.d,
             Reg8Name::E => &mut self.e,
-            //Reg8Name::F => &mut self.f,
+            Reg8Name::F => &mut self.f,
             Reg8Name::H => &mut self.h,
             Reg8Name::L => &mut self.l
         };
         *reg = value;
     }
 
-    fn reg16_string(&self, reg_name: &Reg16Name) -> &str {
+    fn reg16_string(&self, reg_name: Reg16Name) -> &str {
         match reg_name {
-            &Reg16Name::AF => "AF",
-            &Reg16Name::BC => "BC",
-            &Reg16Name::DE => "DE",
-            &Reg16Name::HL => "HL"
+            Reg16Name::AF => "AF",
+            Reg16Name::BC => "BC",
+            Reg16Name::DE => "DE",
+            Reg16Name::HL => "HL"
+        }
+    }
+
+    fn reg16_to_2reg8s(&self, reg_name: Reg16Name) -> (Reg8Name, Reg8Name) {
+        match reg_name {
+            Reg16Name::AF => (Reg8Name::A, Reg8Name::F),
+            Reg16Name::BC => (Reg8Name::B, Reg8Name::C),
+            Reg16Name::DE => (Reg8Name::D, Reg8Name::E),
+            Reg16Name::HL => (Reg8Name::H, Reg8Name::L)
         }
     }
 
@@ -127,6 +142,13 @@ impl Cpu {
             Reg16Name::DE => u16_from_2u8s((self.e, self.d)),
             Reg16Name::HL => u16_from_2u8s((self.l, self.h))
         }
+    }
+
+    fn reg16_write(&mut self, reg_name: Reg16Name, value: u16) {
+        let bytes = u16_to_2u8s(value);
+        let regs = self.reg16_to_2reg8s(reg_name);
+        self.reg8_write(regs.0, bytes.0);
+        self.reg8_write(regs.1, bytes.1);
     }
 
     fn read_hladdr_u8(&self) -> u8 {
@@ -244,6 +266,22 @@ impl Cpu {
             0x30 => self.jr(Some(Condition::NC), Operand::Immediate8),
             0x38 => self.jr(Some(Condition::C), Operand::Immediate8),
 
+            // INCs
+
+            // DECs
+            0x05 => self.dec(Operand::Reg8(Reg8Name::B)),
+            0x15 => self.dec(Operand::Reg8(Reg8Name::D)),
+            0x25 => self.dec(Operand::Reg8(Reg8Name::H)),
+            0x35 => self.dec(Operand::HLAddr),
+            0x0B => self.dec(Operand::Reg16(Reg16Name::BC)),
+            0x1B => self.dec(Operand::Reg16(Reg16Name::DE)),
+            0x2B => self.dec(Operand::Reg16(Reg16Name::HL)),
+            0x3B => self.dec(Operand::StackPointer),
+            0x0D => self.dec(Operand::Reg8(Reg8Name::C)),
+            0x1D => self.dec(Operand::Reg8(Reg8Name::E)),
+            0x2D => self.dec(Operand::Reg8(Reg8Name::L)),
+            0x3D => self.dec(Operand::Reg8(Reg8Name::A)),
+
             // ADDs
             0x80 => self.add(Operand::Reg8(Reg8Name::B)),
             0x81 => self.add(Operand::Reg8(Reg8Name::C)),
@@ -323,12 +361,8 @@ impl Cpu {
             0x21 => self.ld_hl_d16(),
             0x01 => self.ld_bc_d16(),
             0x23 => self.inc_hl(),
-            0x0B => self.dec_bc(),
             0x04 => self.inc_b(),
             0x22 => self.ldi_hl_a(),
-            0x1D => self.dec_e(),
-            0x15 => self.dec_d(),
-            0x3D => self.dec_a(),
             0xE5 => self.push_hl(),
             0xD5 => self.push_de(),
             0xC5 => self.push_bc(),
@@ -439,29 +473,29 @@ impl Cpu {
                 match r2 {
                     Operand::Reg8(second_reg_name) => {
                         println!("LD {},{}",
-                            self.reg8_string(&reg_name), self.reg8_string(&second_reg_name));
+                            self.reg8_string(reg_name), self.reg8_string(second_reg_name));
                         let value = self.reg8_read(second_reg_name);
                         self.reg8_write(reg_name, value);
                     },
                     Operand::HLAddr => {
-                        println!("LD {},(HL)", self.reg8_string(&reg_name));
+                        println!("LD {},(HL)", self.reg8_string(reg_name));
                         let value = self.read_hladdr_u8();
                         self.reg8_write(reg_name, value);
                     },
                     Operand::Immediate8 => {
                         let value = self.mem.read_u8(self.pc+1);
-                        println!("LD {},{:02X}", self.reg8_string(&reg_name), value);
+                        println!("LD {},{:02X}", self.reg8_string(reg_name), value);
                         self.reg8_write(reg_name, value);
                         self.pc += 1;
                     },
                     _ => unreachable!("LD {} only supports Reg8, HLAddr, and Immediate8.",
-                        self.reg8_string(&reg_name))
+                        self.reg8_string(reg_name))
                 }
             },
             Operand::HLAddr => {
                 match r2 {
                     Operand::Reg8(reg_name) => {
-                        println!("LD (HL),{}", self.reg8_string(&reg_name));
+                        println!("LD (HL),{}", self.reg8_string(reg_name));
                         let value = self.reg8_read(reg_name);
                         self.write_hladdr_u8(value);
                     },
@@ -478,19 +512,19 @@ impl Cpu {
                 match r2 {
                     Operand::Reg8(second_reg_name) => {
                         println!("LD ({}),{}",
-                            self.reg16_string(&reg_name), self.reg8_string(&second_reg_name));
+                            self.reg16_string(reg_name), self.reg8_string(second_reg_name));
                         let value = self.reg8_read(second_reg_name);
                         self.reg16addr_write_u8(reg_name, value);
                     },
                     _ => unreachable!("LD ({}) only supports Reg8.",
-                        self.reg16_string(&reg_name))
+                        self.reg16_string(reg_name))
                 }
             },
             Operand::Addr16 => {
                 let addr = self.mem.read_u16(self.pc+1);
                 match r2 {
                     Operand::Reg8(reg_name) => {
-                        println!("LD ({:02X}),{}", addr, self.reg8_string(&reg_name));
+                        println!("LD ({:02X}),{}", addr, self.reg8_string(reg_name));
                         let value = self.reg8_read(reg_name);
                         self.mem.write_u8(addr, value);
                     },
@@ -635,20 +669,42 @@ impl Cpu {
         self.pc += 1;
     }
 
-    fn dec_bc(&mut self) {
-        println!("DEC BC");
-        let value = u16_from_2u8s((self.c, self.b)) - 1;
-        let bytes = u16_to_2u8s(value);
-        self.b = bytes.0;
-        self.c = bytes.1;
+    fn dec(&mut self, operand: Operand) {
+        match operand {
+            Operand::Reg8(reg_name) => {
+                println!("DEC {}", self.reg8_string(reg_name));
+                let value = self.reg8_read(reg_name).saturating_sub(1);
+                self.reg8_write(reg_name, value);
+                if value == 0 {
+                    self.set_f_zero();
+                    // I'm not sure how to interpret "Set if no borrow from bit 4."
+                    self.set_f_halfcarry();
+                }
+                self.set_f_subtraction();
+            },
+            Operand::Reg16(reg_name) => {
+                println!("DEC {}", self.reg16_string(reg_name));
+                let value = self.reg16_read(reg_name).saturating_sub(1);
+                self.reg16_write(reg_name, value);
+            },
+            Operand::HLAddr => {
+                println!("DEC (HL)");
+                let value = self.read_hladdr_u8().saturating_sub(1);
+                self.write_hladdr_u8(value);
+                if value == 0 {
+                    self.set_f_zero();
+                    self.set_f_halfcarry();
+                }
+                self.set_f_subtraction();
+            },
+            Operand::StackPointer => {
+                println!("DEC SP");
+                let value = self.sp.saturating_sub(1);
+                self.sp = value;
+            },
+            _ => unreachable!("DEC only supports Reg8, Reg16, HLAddr, and StackPointer.")
+        };
         self.pc += 1;
-    }
-
-    fn ld_h_d8(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1);
-        println!("LD H,{:02X}", operand);
-        self.h = operand;
-        self.pc += 2;
     }
 
     fn inc_b(&mut self) {
@@ -675,40 +731,6 @@ impl Cpu {
         let value = self.a;
         self.write_hladdr_u8(value);
         self.inc_hl_();
-        self.pc += 1;
-    }
-
-    fn dec_e(&mut self) {
-        println!("DEC E");
-        self.e.saturating_sub(1);
-        if self.e == 0 {
-            self.set_f_zero();
-            // I'm not sure how to interpret "Set if no borrow from bit 4."
-            self.set_f_halfcarry();
-        }
-        self.set_f_subtraction();
-        self.pc += 1;
-    }
-
-    fn dec_d(&mut self) {
-        println!("DEC D");
-        self.d.saturating_sub(1);
-        if self.d == 0 {
-            self.set_f_zero();
-            self.set_f_halfcarry();
-        }
-        self.set_f_subtraction();
-        self.pc += 1;
-    }
-
-    fn dec_a(&mut self) {
-        println!("DEC A");
-        self.a.saturating_sub(1);
-        if self.a == 0 {
-            self.set_f_zero();
-            self.set_f_halfcarry();
-        }
-        self.set_f_subtraction();
         self.pc += 1;
     }
 
@@ -744,7 +766,7 @@ impl Cpu {
         let orig = self.a;
         let value = match operand {
             Operand::Reg8(reg_name) => {
-                println!("ADD A,{}", self.reg8_string(&reg_name));
+                println!("ADD A,{}", self.reg8_string(reg_name));
                 let value = self.reg8_read(reg_name);
                 self.a += value;
                 self.pc += 1;
@@ -783,7 +805,7 @@ impl Cpu {
     fn sub(&mut self, operand: Operand) {
         let value = match operand {
             Operand::Reg8(reg_name) => {
-                println!("SUB A,{}", self.reg8_string(&reg_name));
+                println!("SUB A,{}", self.reg8_string(reg_name));
                 let value = self.reg8_read(reg_name);
                 self.a -= value;
                 self.pc += 1;
@@ -821,7 +843,7 @@ impl Cpu {
     fn and(&mut self, operand: Operand) {
         match operand {
             Operand::Reg8(reg_name) => {
-                println!("AND {}", self.reg8_string(&reg_name));
+                println!("AND {}", self.reg8_string(reg_name));
                 self.a &= self.reg8_read(reg_name);
                 self.pc += 1;
             },
@@ -848,7 +870,7 @@ impl Cpu {
     fn xor(&mut self, operand: Operand) {
         match operand {
             Operand::Reg8(reg_name) => {
-                println!("XOR {}", self.reg8_string(&reg_name));
+                println!("XOR {}", self.reg8_string(reg_name));
                 self.a ^= self.reg8_read(reg_name);
                 self.pc += 1;
             },
@@ -875,7 +897,7 @@ impl Cpu {
     fn or(&mut self, operand: Operand) {
         match operand {
             Operand::Reg8(reg_name) => {
-                println!("OR {}", self.reg8_string(&reg_name));
+                println!("OR {}", self.reg8_string(reg_name));
                 self.a |= self.reg8_read(reg_name);
                 self.pc += 1;
             },
@@ -902,7 +924,7 @@ impl Cpu {
     fn cp(&mut self, operand: Operand) {
         let value = match operand {
             Operand::Reg8(reg_name) => {
-                println!("CP {}", self.reg8_string(&reg_name));
+                println!("CP {}", self.reg8_string(reg_name));
                 let value = self.reg8_read(reg_name);
                 self.pc += 1;
                 value
