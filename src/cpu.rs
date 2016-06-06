@@ -12,6 +12,24 @@ pub struct Cpu {
     mem: Mem
 }
 
+enum Reg8Name {
+    A, F,
+    B, C,
+    D, E,
+    H, L
+}
+
+enum Operand<'a> {
+    Reg8(Reg8Name),
+    Reg16(&'a mut u16),
+    Immediate8, // d8
+    Immediate16, // d16
+    Addr8, // a8
+    Addr16, // a16
+    Signed8, // r8
+    HLAddr, // (HL)
+}
+
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
@@ -37,11 +55,63 @@ impl Cpu {
         }
     }
 
-    fn opcode_exec(&mut self, opcode: u8) -> () {
+    fn reg8_string(&self, reg_name: &Reg8Name) -> &str {
+        match reg_name {
+            &Reg8Name::A => "A",
+            &Reg8Name::B => "B",
+            &Reg8Name::C => "C",
+            &Reg8Name::D => "D",
+            &Reg8Name::E => "E",
+            &Reg8Name::F => "F",
+            &Reg8Name::H => "H",
+            &Reg8Name::L => "L"
+        }
+    }
+
+    fn reg8_read(&mut self, reg_name: Reg8Name) -> u8 {
+        match reg_name {
+            Reg8Name::A => self.a,
+            Reg8Name::B => self.b,
+            Reg8Name::C => self.c,
+            Reg8Name::D => self.d,
+            Reg8Name::E => self.e,
+            Reg8Name::F => self.f,
+            Reg8Name::H => self.h,
+            Reg8Name::L => self.l
+        }
+    }
+
+    fn reg8_write(&mut self, reg_name: Reg8Name, value: u8) {
+        let mut reg = match reg_name {
+            Reg8Name::A => self.a,
+            Reg8Name::B => self.b,
+            Reg8Name::C => self.c,
+            Reg8Name::D => self.d,
+            Reg8Name::E => self.e,
+            Reg8Name::F => self.f,
+            Reg8Name::H => self.h,
+            Reg8Name::L => self.l
+        };
+        reg = value;
+    }
+
+    fn opcode_exec(&mut self, opcode: u8) {
         //println!("PC {}", self.pc);
         print!("{:02X} ", opcode);
         match opcode {
             0x00 => self.nop(),
+
+            // ANDs
+            0xA0 => self.and(Operand::Reg8(Reg8Name::B)),
+            0xA1 => self.and(Operand::Reg8(Reg8Name::C)),
+            0xA2 => self.and(Operand::Reg8(Reg8Name::D)),
+            0xA3 => self.and(Operand::Reg8(Reg8Name::E)),
+            0xA4 => self.and(Operand::Reg8(Reg8Name::H)),
+            0xA5 => self.and(Operand::Reg8(Reg8Name::L)),
+            0xA6 => self.and(Operand::HLAddr),
+            0xA7 => self.and(Operand::Reg8(Reg8Name::A)),
+            0xE6 => self.and(Operand::Immediate8),
+
             0xC3 => self.jump_nn(),
             0xFE => self.cp_n(),
             0x28 => self.jr_z(),
@@ -57,7 +127,6 @@ impl Cpu {
             0xF0 => self.ldh_a_a8(),
             0x47 => self.ld_b_a(),
             0x20 => self.jr_nz_r8(),
-            0xE6 => self.and_d8(),
             0x78 => self.ld_a_b(),
             0xC9 => self.ret(),
             0x31 => self.ld_sp_d16(),
@@ -79,7 +148,6 @@ impl Cpu {
             0xD5 => self.push_de(),
             0xC5 => self.push_bc(),
             0xFA => self.ld_a_a16(),
-            0xA7 => self.and_a(),
             0xCB => {
                 let opcode = self.mem.read_u8(self.pc+1);
                 print!("{:02X} ", opcode);
@@ -324,16 +392,7 @@ impl Cpu {
         }
     }
 
-    fn and_d8(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1);
-        println!("AND {:02X}", operand);
-        self.a &= operand;
-        self.f = 0b0010_0000u8;
-        if self.a == 0 {
-            self.set_f_zero();
-        }
-        self.pc += 2;
-    }
+
 
     fn ld_a_b(&mut self) {
         println!("LD A,B");
@@ -437,16 +496,28 @@ impl Cpu {
         self.pc += 1;
     }
 
-    fn ldi_hl_a(&mut self) {
-        println!("LDI (HL),A");
+    fn read_hladdr_u8(&self) -> u8 {
         let addr = u16_from_2u8s((self.l, self.h));
-        self.mem.write_u8(addr, self.a);
+        self.mem.read_u8(addr)
+    }
 
+    fn write_hladdr_u8(&mut self, value: u8) {
+        let addr = u16_from_2u8s((self.l, self.h));
+        self.mem.write_u8(addr, value);
+    }
+
+    fn inc_hl_(&mut self) {
         let value = u16_from_2u8s((self.l, self.h)) + 1;
         let bytes = u16_to_2u8s(value);
         self.h = bytes.0;
         self.l = bytes.1;
+    }
 
+    fn ldi_hl_a(&mut self) {
+        println!("LDI (HL),A");
+        let value = self.a;
+        self.write_hladdr_u8(value);
+        self.inc_hl_();
         self.pc += 1;
     }
 
@@ -512,13 +583,30 @@ impl Cpu {
         self.pc += 3;
     }
 
-    fn and_a(&mut self) {
-        println!("AND A");
-        self.a &= self.a;
+    fn and(&mut self, operand: Operand) {
+        match operand {
+            Operand::Reg8(reg_name) => {
+                println!("AND {}", self.reg8_string(&reg_name));
+                self.a &= self.reg8_read(reg_name);
+                self.pc += 1;
+            },
+            Operand::HLAddr => {
+                println!("AND (HL)");
+                let value = self.read_hladdr_u8();
+                self.a &= value;
+                self.pc += 1;
+            },
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1);
+                println!("AND {:02X}", value);
+                self.a &= value;
+                self.pc += 2;
+            },
+            _ => unreachable!("AND only supports Reg8, HLAddr, and Immediate8.")
+        }
         self.f = 0b0010_0000u8;
         if self.a == 0 {
             self.set_f_zero();
         }
-        self.pc += 1;
     }
 }
