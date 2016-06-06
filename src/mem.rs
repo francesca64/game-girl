@@ -47,7 +47,7 @@ impl Mem {
         } else if addr <= 0xFF00 {
             panic!("Memory address in empty and unusable #1, which is unimplemented. {}", addr);
         } else if addr <= 0xFF4C {
-            println!("IO Read {} ({})", addr, addr-0xFF00);
+            //println!("IO Read {} ({})", hexdump(addr), addr-0xFF00);
             (&self.io_ports, (addr-0xFF00) as usize)
         } else if addr <= 0xFF80 {
             panic!("Memory address in empty and unusable #2, which is unimplemented. {}", addr);
@@ -74,7 +74,7 @@ impl Mem {
         } else if addr <= 0xFF00 {
             panic!("Memory address in empty and unusable #1, which is unimplemented. {}", addr);
         } else if addr <= 0xFF4C {
-            println!("IO Write {} ({})", addr, addr-0xFF00);
+            //println!("IO Write {} ({})", hexdump(addr), addr-0xFF00);
             (&mut self.io_ports, (addr-0xFF00) as usize)
         } else if addr <= 0xFF80 {
             panic!("Memory address in empty and unusable #2, which is unimplemented. {}", addr);

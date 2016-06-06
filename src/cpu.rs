@@ -38,6 +38,7 @@ impl Cpu {
     }
 
     fn opcode_exec(&mut self, opcode: u8) -> () {
+        //println!("PC {}", self.pc);
         print!("{:02X} ", opcode);
         match opcode {
             0x00 => self.nop(),
@@ -45,6 +46,7 @@ impl Cpu {
             0xFE => self.cp_n(),
             0x28 => self.jr_z(),
             0xAF => self.xor_a(),
+            0x18 => self.jr_r8(),
             0x02 => self.ld_bc_a(),
             0x3E => self.ld_a_d8(),
             0xEA => self.ld_a16_a(),
@@ -182,14 +184,23 @@ impl Cpu {
     }
 
     fn xor_a(&mut self) {
-        let operand = self.mem.read_u8(self.pc+1);
         self.f = 0x0;
-        self.a ^= operand;
+        self.a ^= self.a;
         if self.a == 0x0 {
             self.set_f_zero();
         }
-        self.pc += 2;
-        println!("XOR A,{}", hexdump(operand));
+        self.pc += 1;
+        println!("XOR A,A");
+    }
+
+    fn jr_r8(&mut self) {
+        let operand = self.mem.read_u8(self.pc+1) as i8;
+        if operand > 0 {
+            self.pc += operand as u16;
+        } else {
+            self.pc -= (operand * -1) as u16;
+        }
+        println!("JR {}", hexdump(operand));
     }
 
     fn ld_bc_a(&mut self) {
@@ -233,7 +244,7 @@ impl Cpu {
         let addr = 0xFF00 + self.mem.read_u8(self.pc+1) as u16;
         self.mem.write_u8(addr, self.a);
         self.pc += 2;
-        println!("LD {},A", hexdump(addr));
+        println!("LDH {},A", hexdump(addr));
     }
 
     fn call(&mut self) {
@@ -274,7 +285,7 @@ impl Cpu {
         } else {
             self.pc += 2;
         }
-        println!("LD NZ,{}", hexdump(operand));
+        println!("JR NZ,{}", hexdump(operand));
         panic!();
     }
 }
