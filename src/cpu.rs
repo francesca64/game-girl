@@ -101,6 +101,28 @@ impl Cpu {
         match opcode {
             0x00 => self.nop(),
 
+            // ADDs
+            0x80 => self.add(Operand::Reg8(Reg8Name::B)),
+            0x81 => self.add(Operand::Reg8(Reg8Name::C)),
+            0x82 => self.add(Operand::Reg8(Reg8Name::D)),
+            0x83 => self.add(Operand::Reg8(Reg8Name::E)),
+            0x84 => self.add(Operand::Reg8(Reg8Name::H)),
+            0x85 => self.add(Operand::Reg8(Reg8Name::L)),
+            0x86 => self.add(Operand::HLAddr),
+            0x87 => self.add(Operand::Reg8(Reg8Name::A)),
+            0xC6 => self.add(Operand::Immediate8),
+
+            // SUBs
+            0x90 => self.sub(Operand::Reg8(Reg8Name::B)),
+            0x91 => self.sub(Operand::Reg8(Reg8Name::C)),
+            0x92 => self.sub(Operand::Reg8(Reg8Name::D)),
+            0x93 => self.sub(Operand::Reg8(Reg8Name::E)),
+            0x94 => self.sub(Operand::Reg8(Reg8Name::H)),
+            0x95 => self.sub(Operand::Reg8(Reg8Name::L)),
+            0x96 => self.sub(Operand::HLAddr),
+            0x97 => self.sub(Operand::Reg8(Reg8Name::A)),
+            0xD6 => self.sub(Operand::Immediate8),
+
             // ANDs
             0xA0 => self.and(Operand::Reg8(Reg8Name::B)),
             0xA1 => self.and(Operand::Reg8(Reg8Name::C)),
@@ -266,10 +288,9 @@ impl Cpu {
         // 0x91 = 145 = first line of vblank period.
         let hack = self.pc == 109 && operand == 0x91;
 
-        self.f = 0x0;
+        self.f = 0b01000_000u8;
         if operand == self.a || hack  {
             self.set_f_zero();
-            self.set_f_subtraction();
         } else if self.a < operand {
             self.set_f_carry();
         }
@@ -401,8 +422,6 @@ impl Cpu {
             panic!();
         }
     }
-
-
 
     fn ld_a_b(&mut self) {
         println!("LD A,B");
@@ -583,6 +602,85 @@ impl Cpu {
         self.pc += 3;
     }
 
+    fn add(&mut self, operand: Operand) {
+        let orig = self.a;
+        let value = match operand {
+            Operand::Reg8(reg_name) => {
+                println!("ADD A,{}", self.reg8_string(&reg_name));
+                let value = self.reg8_read(reg_name);
+                self.a += value;
+                self.pc += 1;
+                value
+            },
+            Operand::HLAddr => {
+                println!("ADD A,(HL)");
+                let value = self.read_hladdr_u8();
+                self.a += value;
+                self.pc += 1;
+                value
+            },
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1);
+                println!("ADD A,{:02X}", value);
+                self.a += value;
+                self.pc += 2;
+                value
+            },
+            _ => unreachable!("ADD only supports Reg8, HLAddr, and Immediate8.")
+        };
+
+        self.f = 0;
+        if self.a == 0 {
+            self.set_f_zero();
+        }
+        let half_carry = ((self.a as i8 & 0xF) + (value as i8 & 0xF)) & 0x10;
+        if half_carry == 0x10 {
+            self.set_f_halfcarry();
+        }
+        if self.a < orig {
+            self.set_f_carry();
+        }
+    }
+
+    fn sub(&mut self, operand: Operand) {
+        let orig = self.a;
+        let value = match operand {
+            Operand::Reg8(reg_name) => {
+                println!("SUB A,{}", self.reg8_string(&reg_name));
+                let value = self.reg8_read(reg_name);
+                self.a += value;
+                self.pc += 1;
+                value
+            },
+            Operand::HLAddr => {
+                println!("SUB A,(HL)");
+                let value = self.read_hladdr_u8();
+                self.a += value;
+                self.pc += 1;
+                value
+            },
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1);
+                println!("SUB A,{:02X}", value);
+                self.a += value;
+                self.pc += 2;
+                value
+            },
+            _ => unreachable!("SUB only supports Reg8, HLAddr, and Immediate8.")
+        };
+
+        self.f = 0b01000_000u8;
+        if value == self.a {
+            self.set_f_zero();
+        } else if self.a < value {
+            self.set_f_carry();
+        }
+        let half_carry = ((self.a as i8 & 0xF) - (value as i8 & 0xF)) & 0x10;
+        if half_carry == 0x10 {
+            self.set_f_halfcarry();
+        }
+    }
+
     fn and(&mut self, operand: Operand) {
         match operand {
             Operand::Reg8(reg_name) => {
@@ -603,7 +701,7 @@ impl Cpu {
                 self.pc += 2;
             },
             _ => unreachable!("AND only supports Reg8, HLAddr, and Immediate8.")
-        }
+        };
         self.f = 0b0010_0000u8;
         if self.a == 0 {
             self.set_f_zero();
@@ -630,7 +728,7 @@ impl Cpu {
                 self.pc += 2;
             },
             _ => unreachable!("OR only supports Reg8, HLAddr, and Immediate8.")
-        }
+        };
         self.f = 0;
         if self.a == 0 {
             self.set_f_zero();
