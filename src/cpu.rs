@@ -80,27 +80,25 @@ impl Cpu {
 
     fn push_stack_u8(&mut self, value: u8) {
         self.sp -= 1;
-        println!("[SP {:02X}]", self.sp);
         self.mem.write_u8(self.sp, value);
     }
 
     fn push_stack_u16(&mut self, value: u16) {
         self.sp -= 2;
-        println!("[SP {:02X}]", self.sp);
         self.mem.write_u16(self.sp, value);
     }
 
     fn pop_stack_u8(&mut self) -> u8 {
+        let popped = self.mem.read_u8(self.sp);
         self.sp += 1;
-        println!("[SP {:02X}]", self.sp);
-        self.mem.read_u8(self.sp)
+        popped
     }
 
     fn pop_stack_u16(&mut self) -> u16 {
+        //self.mem.dump();
+        let popped = switch_u16(self.mem.read_u16(self.sp));
         self.sp += 2;
-        println!("[SP {:02X}]", self.sp);
-        self.mem.dump();
-        self.mem.read_u16(self.sp)
+        popped
     }
 
     fn is_f_zero(&self) -> bool {
@@ -325,6 +323,6 @@ impl Cpu {
     fn ret(&mut self) {
         println!("RET");
         self.pc = self.pop_stack_u16();
-        println!("{:?}", self.pc);
+        println!("{:02X}", self.pc);
     }
 }

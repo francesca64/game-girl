@@ -24,6 +24,11 @@ pub fn get_u64(bytes: &[u8], offset: usize) -> u64 {
     | (bytes[offset+0] as u64) << 8*0
 }
 
+pub fn switch_u16(value: u16) -> u16 {
+    let b = u16_to_2u8s(value);
+    u16_from_2u8s((b.0, b.1))
+}
+
 pub fn u16_to_2u8s(n: u16) -> (u8, u8) {
     (
         (n >> 8*1) as u8,
