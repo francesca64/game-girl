@@ -241,10 +241,11 @@ impl Cpu {
     }
 
     fn ldh_a8_a(&mut self) {
-        let addr = 0xFF00 + self.mem.read_u8(self.pc+1) as u16;
+        let operand = self.mem.read_u8(self.pc+1);
+        let addr = 0xFF00 + operand as u16;
         self.mem.write_u8(addr, self.a);
         self.pc += 2;
-        println!("LDH {},A", hexdump(addr));
+        println!("LDH {},A", hexdump(operand));
     }
 
     fn call(&mut self) {
@@ -256,8 +257,8 @@ impl Cpu {
     }
 
     fn ldh_a_a8(&mut self) {
-        let addr = (0xFF00 + self.mem.read_u8(self.pc+1) as u16) as u8;
-        self.a = addr;
+        let addr = 0xFF00 + self.mem.read_u8(self.pc+1) as u16;
+        self.a = self.mem.read_u8(addr);
         self.pc += 2;
         println!("LD A,{}", hexdump(addr));
     }
