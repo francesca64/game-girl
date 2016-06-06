@@ -5,6 +5,7 @@ use std::fs::File;
 pub struct Mem {
     fixed_rom_bank: Vec<u8>,
     switchable_rom_bank: Vec<u8>,
+    vram: Vec<u8>,
     internal_ram_8kb: Vec<u8>,
     io_ports: Vec<u8>,
     high_ram: Vec<u8>
@@ -15,6 +16,7 @@ impl Default for Mem {
         Mem {
             fixed_rom_bank: Vec::with_capacity(0x4000),
             switchable_rom_bank: Vec::with_capacity(0x4000),
+            vram: vec![0x0; 0x2000],
             internal_ram_8kb: vec![0x0; 0x2000],
             io_ports: vec![0x0; 76],
             high_ram: vec![0x0; 128]
@@ -37,7 +39,7 @@ impl Mem {
         } else if addr <= 0x8000 {
             (&self.switchable_rom_bank, (addr-0x4000) as usize)
         } else if addr <= 0xA000 {
-            panic!("Memory address in 8kb VRAM, which is unimplemented. {}", addr);
+            (&self.vram, (addr-0x8000) as usize)
         } else if addr <= 0xC000 {
             panic!("Memory address in 8kb switchable RAM, which is unimplemented. {}", addr);
         } else if addr <= 0xE000 {
@@ -64,7 +66,7 @@ impl Mem {
         } else if addr <= 0x8000 {
             (&mut self.switchable_rom_bank, (addr-0x4000) as usize)
         } else if addr <= 0xA000 {
-            panic!("Memory address in 8kb VRAM, which is unimplemented. {}", addr);
+            (&mut self.vram, (addr-0x8000) as usize)
         } else if addr <= 0xC000 {
             panic!("Memory address in 8kb switchable RAM, which is unimplemented. {}", addr);
         } else if addr <= 0xE000 {
@@ -112,6 +114,8 @@ impl Mem {
         f.write(&self.fixed_rom_bank).unwrap();
         f.seek(SeekFrom::Start(0x4000)).unwrap();
         f.write(&self.switchable_rom_bank).unwrap();
+        f.seek(SeekFrom::Start(0x8000)).unwrap();
+        f.write(&self.vram).unwrap();
         f.seek(SeekFrom::Start(0xE000)).unwrap();
         f.write(&self.internal_ram_8kb).unwrap();
         f.seek(SeekFrom::Start(0xFF4C)).unwrap();

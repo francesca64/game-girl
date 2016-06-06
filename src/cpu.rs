@@ -60,6 +60,26 @@ impl Cpu {
             0xE6 => self.and_d8(),
             0x78 => self.ld_a_b(),
             0xC9 => self.ret(),
+            0x31 => self.ld_sp_d16(),
+            0x21 => self.ld_hl_d16(),
+            0x01 => self.ld_bc_d16(),
+            0x36 => self.ld_hl_d8(),
+            0x23 => self.inc_hl(),
+            0x0B => self.dec_bc(),
+            0xB1 => self.or_c(),
+            0x4A => self.ld_c_d(),
+            0x26 => self.ld_h_d8(),
+            0x04 => self.inc_b(),
+            0x6B => self.ld_l_e(),
+            0x22 => self.ldi_hl_a(),
+            0x1D => self.dec_e(),
+            0x15 => self.dec_d(),
+            0x3D => self.dec_a(),
+            0xE5 => self.push_hl(),
+            0xD5 => self.push_de(),
+            0xC5 => self.push_bc(),
+            0xFA => self.ld_a_a16(),
+            0xA7 => self.and_a(),
             0xCB => {
                 let opcode = self.mem.read_u8(self.pc+1);
                 print!("{:02X} ", opcode);
@@ -67,12 +87,14 @@ impl Cpu {
                     0x87 => self.cb_res_0_a(),
                     _ => {
                         println!("Unimplemented");
+                        self.mem.dump();
                         panic!()
                     }
                 }
             },
             _ => {
                 println!("Unimplemented");
+                self.mem.dump();
                 panic!()
             }
         }
@@ -95,7 +117,6 @@ impl Cpu {
     }
 
     fn pop_stack_u16(&mut self) -> u16 {
-        //self.mem.dump();
         let popped = switch_u16(self.mem.read_u16(self.sp));
         self.sp += 2;
         popped
@@ -323,6 +344,181 @@ impl Cpu {
     fn ret(&mut self) {
         println!("RET");
         self.pc = self.pop_stack_u16();
-        println!("{:02X}", self.pc);
+    }
+
+    fn ld_sp_d16(&mut self) {
+        let operand = self.mem.read_u16(self.pc+1);
+        println!("LD SP,{:02X}", operand);
+        self.sp = operand;
+        self.pc += 3;
+    }
+
+    fn ld_hl_d16(&mut self) {
+        let operand = self.mem.read_u16(self.pc+1);
+        println!("LD HL,{:02X}", operand);
+        let bytes = u16_to_2u8s(operand);
+        self.h = bytes.0;
+        self.l = bytes.1;
+        self.pc += 3;
+    }
+
+    fn ld_bc_d16(&mut self) {
+        let operand = self.mem.read_u16(self.pc+1);
+        println!("LD BC,{:02X}", operand);
+        let bytes = u16_to_2u8s(operand);
+        self.b = bytes.0;
+        self.c = bytes.1;
+        self.pc += 3;
+    }
+
+    fn ld_hl_d8(&mut self) {
+        let operand = self.mem.read_u8(self.pc+1);
+        println!("LD (HL),{:02X}", operand);
+        self.l = operand;
+        self.pc += 2;
+    }
+
+    fn inc_hl(&mut self) {
+        println!("INC HL");
+        let value = u16_from_2u8s((self.l, self.h)) + 1;
+        let bytes = u16_to_2u8s(value);
+        self.h = bytes.0;
+        self.l = bytes.1;
+        self.pc += 1;
+    }
+
+    fn dec_bc(&mut self) {
+        println!("DEC BC");
+        let value = u16_from_2u8s((self.c, self.b)) - 1;
+        let bytes = u16_to_2u8s(value);
+        self.b = bytes.0;
+        self.c = bytes.1;
+        self.pc += 1;
+    }
+
+    fn or_c(&mut self) {
+        println!("OR C");
+        self.a |= self.c;
+        self.f = 0x0;
+        if self.a == 0 {
+            self.set_f_zero();
+        }
+        self.pc += 1;
+    }
+
+    fn ld_c_d(&mut self) {
+        println!("LD C,D");
+        self.c = self.d;
+        self.pc += 1;
+    }
+
+    fn ld_h_d8(&mut self) {
+        let operand = self.mem.read_u8(self.pc+1);
+        println!("LD H,{:02X}", operand);
+        self.h = operand;
+        self.pc += 2;
+    }
+
+    fn inc_b(&mut self) {
+        println!("INC B");
+        self.b.saturating_add(1);
+        if self.b == 0 {
+            self.set_f_zero();
+            // This might not be the correct interpretation of "Set if carry from bit 3."
+            self.set_f_halfcarry();
+        }
+        self.reset_f_subtraction();
+        self.pc += 1;
+    }
+
+    fn ld_l_e(&mut self) {
+        println!("LD L,E");
+        self.l = self.e;
+        self.pc += 1;
+    }
+
+    fn ldi_hl_a(&mut self) {
+        println!("LDI (HL),A");
+        let addr = u16_from_2u8s((self.l, self.h));
+        self.mem.write_u8(addr, self.a);
+
+        let value = u16_from_2u8s((self.l, self.h)) + 1;
+        let bytes = u16_to_2u8s(value);
+        self.h = bytes.0;
+        self.l = bytes.1;
+
+        self.pc += 1;
+    }
+
+    fn dec_e(&mut self) {
+        println!("DEC E");
+        self.e.saturating_sub(1);
+        if self.e == 0 {
+            self.set_f_zero();
+            // I'm not sure how to interpret "Set if no borrow from bit 4."
+            self.set_f_halfcarry();
+        }
+        self.set_f_subtraction();
+        self.pc += 1;
+    }
+
+    fn dec_d(&mut self) {
+        println!("DEC D");
+        self.d.saturating_sub(1);
+        if self.d == 0 {
+            self.set_f_zero();
+            self.set_f_halfcarry();
+        }
+        self.set_f_subtraction();
+        self.pc += 1;
+    }
+
+    fn dec_a(&mut self) {
+        println!("DEC A");
+        self.a.saturating_sub(1);
+        if self.a == 0 {
+            self.set_f_zero();
+            self.set_f_halfcarry();
+        }
+        self.set_f_subtraction();
+        self.pc += 1;
+    }
+
+    fn push_hl(&mut self) {
+        println!("PUSH HL");
+        let value = u16_from_2u8s((self.l, self.h));
+        self.push_stack_u16(value);
+        self.pc += 1;
+    }
+
+    fn push_de(&mut self) {
+        println!("PUSH HL");
+        let value = u16_from_2u8s((self.e, self.d));
+        self.push_stack_u16(value);
+        self.pc += 1;
+    }
+
+    fn push_bc(&mut self) {
+        println!("PUSH HL");
+        let value = u16_from_2u8s((self.c, self.b));
+        self.push_stack_u16(value);
+        self.pc += 1;
+    }
+
+    fn ld_a_a16(&mut self) {
+        let addr = self.mem.read_u16(self.pc+1);
+        println!("LD A,({:02X})", addr);
+        self.a = self.mem.read_u8(addr);
+        self.pc += 3;
+    }
+
+    fn and_a(&mut self) {
+        println!("AND A");
+        self.a &= self.a;
+        self.f = 0b0010_0000u8;
+        if self.a == 0 {
+            self.set_f_zero();
+        }
+        self.pc += 1;
     }
 }
