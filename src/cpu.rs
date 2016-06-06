@@ -112,6 +112,17 @@ impl Cpu {
             0xA7 => self.and(Operand::Reg8(Reg8Name::A)),
             0xE6 => self.and(Operand::Immediate8),
 
+            // ORs
+            0xB0 => self.or(Operand::Reg8(Reg8Name::B)),
+            0xB1 => self.or(Operand::Reg8(Reg8Name::C)),
+            0xB2 => self.or(Operand::Reg8(Reg8Name::D)),
+            0xB3 => self.or(Operand::Reg8(Reg8Name::E)),
+            0xB4 => self.or(Operand::Reg8(Reg8Name::H)),
+            0xB5 => self.or(Operand::Reg8(Reg8Name::L)),
+            0xB6 => self.or(Operand::HLAddr),
+            0xB7 => self.or(Operand::Reg8(Reg8Name::A)),
+            0xF6 => self.or(Operand::Immediate8),
+
             0xC3 => self.jump_nn(),
             0xFE => self.cp_n(),
             0x28 => self.jr_z(),
@@ -135,7 +146,6 @@ impl Cpu {
             0x36 => self.ld_hl_d8(),
             0x23 => self.inc_hl(),
             0x0B => self.dec_bc(),
-            0xB1 => self.or_c(),
             0x4A => self.ld_c_d(),
             0x26 => self.ld_h_d8(),
             0x04 => self.inc_b(),
@@ -455,16 +465,6 @@ impl Cpu {
         self.pc += 1;
     }
 
-    fn or_c(&mut self) {
-        println!("OR C");
-        self.a |= self.c;
-        self.f = 0x0;
-        if self.a == 0 {
-            self.set_f_zero();
-        }
-        self.pc += 1;
-    }
-
     fn ld_c_d(&mut self) {
         println!("LD C,D");
         self.c = self.d;
@@ -605,6 +605,33 @@ impl Cpu {
             _ => unreachable!("AND only supports Reg8, HLAddr, and Immediate8.")
         }
         self.f = 0b0010_0000u8;
+        if self.a == 0 {
+            self.set_f_zero();
+        }
+    }
+
+    fn or(&mut self, operand: Operand) {
+        match operand {
+            Operand::Reg8(reg_name) => {
+                println!("OR {}", self.reg8_string(&reg_name));
+                self.a |= self.reg8_read(reg_name);
+                self.pc += 1;
+            },
+            Operand::HLAddr => {
+                println!("OR (HL)");
+                let value = self.read_hladdr_u8();
+                self.a |= value;
+                self.pc += 1;
+            },
+            Operand::Immediate8 => {
+                let value = self.mem.read_u8(self.pc+1);
+                println!("OR {:02X}", value);
+                self.a |= value;
+                self.pc += 2;
+            },
+            _ => unreachable!("OR only supports Reg8, HLAddr, and Immediate8.")
+        }
+        self.f = 0;
         if self.a == 0 {
             self.set_f_zero();
         }
